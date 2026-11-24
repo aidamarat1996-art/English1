@@ -19,6 +19,7 @@
 --accent:#ff5a4e;--ok:light-dark(#0f8a5f,#2fb37f);--soft:light-dark(#f4f6fd,#151d40)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
 h1,h2,h3{font-family:Manrope,Inter,sans-serif;line-height:1.1;text-wrap:balance;margin:0}
 h1{font-size:clamp(30px,5vw,46px);font-weight:800}
@@ -92,6 +93,8 @@ input[type=text]{width:100%}
 /* video */
 .vgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:24px;align-items:start}
 .player{background:#0b0f22;border-radius:18px;overflow:hidden}
+.ytw{aspect-ratio:16/9;background:#000}.ytw iframe{display:block;width:100%;height:100%;border:0}
+.lnk{background:none;border:0;padding:4px 0;min-height:40px;text-align:left;font-weight:500;color:var(--ink)}.lnk.cur{color:var(--field);font-weight:700}
 .player video{display:block;width:100%;max-height:62vh;background:#000}
 .empty{aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#c9d0f5;text-align:center;padding:24px;
  background:radial-gradient(circle at 30% 20%,#2448d8 0,transparent 55%),#0b0f22}
@@ -173,8 +176,11 @@ input[type=text]{width:100%}
 <section id="s-video">
  <div class="vgrid">
   <div>
+   <form id="ytF" class="row" style="margin-bottom:8px"><input type="text" id="ytIn" placeholder="Вставьте ссылку на видео YouTube" aria-label="Ссылка на YouTube" style="flex:1 1 260px"><button class="main">Открыть</button></form>
+   <p class="small" id="ytMsg" style="margin:0 0 10px;min-height:1em"></p>
    <div class="player">
-    <div class="empty" id="vEmpty"><b>Смотрите с английскими субтитрами</b><span>Откройте видеофайл со своего устройства (mp4 или webm) и файл субтитров .srt или .vtt. Русские субтитры — по желанию.</span></div>
+    <div class="empty" id="vEmpty"><b>Смотрите с английскими субтитрами</b><span>Вставьте ссылку на YouTube выше или откройте видеофайл со своего устройства. Для кликабельных субтитров добавьте файл .srt.</span></div>
+    <div class="ytw" id="ytWrap" hidden><div id="yt"></div></div>
     <video id="vid" controls playsinline hidden></video>
     <div class="sub" id="sub"><span class="en small" style="color:#8f99cf">Здесь появятся субтитры. Нажмите на любое слово, чтобы добавить его в свой словарь.</span></div>
     <div class="ctrl">
@@ -187,7 +193,7 @@ input[type=text]{width:100%}
     </div>
    </div>
    <div class="row" style="margin-top:14px">
-    <label class="file" id="fV">Видео<input type="file" id="inV" accept="video/*"></label>
+    <label class="file" id="fV">Видеофайл<input type="file" id="inV" accept="video/*"></label>
     <label class="file" id="fS">Английские субтитры<input type="file" id="inS" accept=".srt,.vtt,text/*"></label>
     <label class="file" id="fR">Русские субтитры<input type="file" id="inR" accept=".srt,.vtt,text/*"></label>
    </div>
@@ -199,6 +205,8 @@ input[type=text]{width:100%}
    </div>
   </div>
   <div>
+   <h3 style="margin-bottom:6px">Мои видео</h3>
+   <ul class="dict" id="vids" style="margin-bottom:22px"></ul>
    <h3 style="margin-bottom:10px">Текст видео</h3>
    <div class="tr" id="tr"><div class="small" style="cursor:default">После загрузки субтитров здесь будет весь текст. Нажмите на строку — видео перейдёт к ней.</div></div>
    <h3 style="margin:22px 0 6px">Мой словарь <span class="small" id="dCount"></span></h3>
@@ -223,7 +231,7 @@ input[type=text]{width:100%}
   <li><a href="https://youglish.com">YouGlish</a> — как слово произносят носители в тысячах видео.</li>
   <li><a href="https://www.opensubtitles.org">OpenSubtitles</a> — файлы .srt к фильмам и сериалам.</li>
  </ul>
- <p class="small" style="margin-top:12px">YouTube и стриминги нельзя встроить прямо в эту страницу, поэтому здесь используется видео с вашего устройства. Файлы никуда не загружаются — всё работает у вас в браузере.</p>
+ <p class="small" style="margin-top:12px">Видео с YouTube показываются со встроенными английскими субтитрами YouTube (если они есть у видео). Чтобы слова в субтитрах были кликабельными и работали «Повторить фразу» и «Пауза после фразы», добавьте к видео файл .srt — он запомнится вместе с видео. Видеофайлы с устройства никуда не загружаются.</p>
 </section>
 
 <section id="s-progress">
@@ -317,7 +325,7 @@ const G=[
 ];
 
 const KEY='eng-learn-b1';
-let S={box:{},days:{},tests:0,best:0,gram:{},mine:[]};
+let S={box:{},days:{},tests:0,best:0,gram:{},mine:[],videos:[],subs:{}};
 try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const $=id=>document.getElementById(id);
@@ -399,37 +407,66 @@ $('gBody').onclick=e=>{const sp=e.target.closest('.sp');if(sp)return speak(sp.da
   $('gList').querySelectorAll('button')[gi].textContent='✓ '+G[gi].t}}};
 
 /* video */
-const vid=$('vid');let EN=[],RU=[],ci=-1,auto=false,hideMode=false,showRu=true,pausedAt=-1,vurl=null,pick=null;
+const vid=$('vid');let EN=[],RU=[],ci=-1,auto=false,hideMode=false,showRu=true,pausedAt=-1,vurl=null,pick=null,src=null,ytp=null,ytId=null,wasPaused=true,ytReady=null;
+const P={
+ t:()=>src==='file'?vid.currentTime:(ytp&&ytp.getCurrentTime?ytp.getCurrentTime():0),
+ paused:()=>src==='file'?vid.paused:!(ytp&&ytp.getPlayerState&&ytp.getPlayerState()===1),
+ play:()=>{if(src==='file')vid.play().catch(()=>{});else if(ytp&&ytp.playVideo)ytp.playVideo()},
+ pause:()=>{if(src==='file')vid.pause();else if(ytp&&ytp.pauseVideo)ytp.pauseVideo()},
+ seek:s=>{if(src==='file')vid.currentTime=s;else if(ytp&&ytp.seekTo)ytp.seekTo(s,true)},
+ rate:r=>{vid.playbackRate=r;if(ytp&&ytp.setPlaybackRate)ytp.setPlaybackRate(r)}};
 async function readSubs(file){const buf=await file.arrayBuffer();let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){txt=new TextDecoder('windows-1251').decode(buf)}return parseSubs(txt)}
 function tsec(s){const m=s.trim().replace(',','.').split(':');let v=0;for(const p of m)v=v*60+parseFloat(p);return v}
 function parseSubs(txt){const out=[];txt.replace(/\r/g,'').split(/\n\s*\n/).forEach(bl=>{const ls=bl.split('\n');const i=ls.findIndex(l=>l.includes('-->'));if(i<0)return;
  const[a,b]=ls[i].split('-->');const text=ls.slice(i+1).join(' ').replace(/<[^>]+>/g,'').replace(/\{[^}]*\}/g,'').trim();if(text)out.push({s:tsec(a),e:tsec(b.trim().split(' ')[0]),text})});return out}
 const fmt=t=>{t=Math.floor(t);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0')};
-$('inV').onchange=e=>{const f=e.target.files[0];if(!f)return;if(vurl)URL.revokeObjectURL(vurl);vurl=URL.createObjectURL(f);vid.src=vurl;vid.hidden=false;$('vEmpty').hidden=true;$('fV').classList.add('done');$('fV').firstChild.textContent='✓ '+f.name.slice(0,28)};
-$('inS').onchange=async e=>{const f=e.target.files[0];if(!f)return;EN=await readSubs(f);$('fS').classList.add('done');$('fS').firstChild.textContent='✓ Английские: '+EN.length+' фраз';ci=-1;drawTr();renderSub()};
-$('inR').onchange=async e=>{const f=e.target.files[0];if(!f)return;RU=await readSubs(f);$('fR').classList.add('done');$('fR').firstChild.textContent='✓ Русские: '+RU.length+' фраз';renderSub()};
-function drawTr(){$('tr').innerHTML=EN.length?EN.map((c,i)=>`<div data-i="${i}"><small>${fmt(c.s)}</small>${esc(c.text)}</div>`).join(''):''}
-$('tr').onclick=e=>{const d=e.target.closest('[data-i]');if(!d||!EN.length)return;const c=EN[+d.dataset.i];vid.currentTime=c.s;pausedAt=-1;if(vid.src)vid.play().catch(()=>{});ci=+d.dataset.i;renderSub()};
+function setSubLabels(){const a=$('fS'),b=$('fR');a.classList.toggle('done',!!EN.length);b.classList.toggle('done',!!RU.length);
+ a.firstChild.textContent=EN.length?'✓ Английские: '+EN.length+' фраз':'Английские субтитры';b.firstChild.textContent=RU.length?'✓ Русские: '+RU.length+' фраз':'Русские субтитры'}
+function storeSubs(){if(src==='yt'&&ytId){S.subs[ytId]={en:EN,ru:RU};save();drawVids()}}
+$('inV').onchange=e=>{const f=e.target.files[0];if(!f)return;if(src==='yt'){P.pause();EN=[];RU=[];ci=-1;setSubLabels();drawTr();renderSub()}
+ if(vurl)URL.revokeObjectURL(vurl);vurl=URL.createObjectURL(f);src='file';vid.src=vurl;vid.hidden=false;$('ytWrap').hidden=true;$('vEmpty').hidden=true;$('fV').classList.add('done');$('fV').firstChild.textContent='✓ '+f.name.slice(0,28);P.rate(+$('vRate').value);e.target.value=''};
+$('inS').onchange=async e=>{const f=e.target.files[0];if(!f)return;EN=await readSubs(f);ci=-1;setSubLabels();drawTr();renderSub();storeSubs();e.target.value=''};
+$('inR').onchange=async e=>{const f=e.target.files[0];if(!f)return;RU=await readSubs(f);setSubLabels();renderSub();storeSubs();e.target.value=''};
+/* youtube */
+const ytIdOf=u=>{u=u.trim();const m=u.match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/|live\/)([A-Za-z0-9_-]{11})/);return m?m[1]:/^[A-Za-z0-9_-]{11}$/.test(u)?u:null};
+function loadYT(){if(ytReady)return ytReady;ytReady=new Promise((res,rej)=>{if(window.YT&&YT.Player)return res();window.onYouTubeIframeAPIReady=res;
+ const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=()=>rej(new Error('blocked'));document.head.appendChild(s);setTimeout(()=>rej(new Error('timeout')),9000)});return ytReady}
+async function openYT(id){$('ytMsg').textContent='Загружаю видео…';
+ try{await loadYT()}catch(e){ytReady=null;$('ytMsg').textContent='YouTube не загрузился. Видео с YouTube работают на вашем сайте на GitHub, а в окне предпросмотра Claude они заблокированы.';return}
+ $('ytMsg').textContent='';if(src==='file')vid.pause();
+ src='yt';ytId=id;vid.hidden=true;$('vEmpty').hidden=true;$('ytWrap').hidden=false;$('fV').classList.remove('done');$('fV').firstChild.textContent='Видеофайл';
+ if(ytp&&ytp.loadVideoById)ytp.loadVideoById(id);
+ else ytp=new YT.Player('yt',{videoId:id,playerVars:{cc_load_policy:1,cc_lang_pref:'en',hl:'en',rel:0,playsinline:1},
+  events:{onReady:()=>P.rate(+$('vRate').value),onStateChange:e=>{if(e.data===1)nameVid()}}});
+ const sv=S.subs[id];EN=sv&&sv.en?sv.en:[];RU=sv&&sv.ru?sv.ru:[];ci=-1;pausedAt=-1;setSubLabels();drawTr();renderSub();
+ if(!S.videos.some(v=>v.id===id)){S.videos.unshift({id,title:'Видео '+id});save()}drawVids()}
+function nameVid(){try{const t=ytp.getVideoData().title,v=S.videos.find(x=>x.id===ytId);if(t&&v&&v.title!==t){v.title=t;save();drawVids()}}catch(e){}}
+$('ytF').onsubmit=e=>{e.preventDefault();const id=ytIdOf($('ytIn').value);if(!id){$('ytMsg').textContent='Не похоже на ссылку YouTube. Пример: https://www.youtube.com/watch?v=…';return}$('ytIn').value='';openYT(id)};
+function drawVids(){$('vids').innerHTML=S.videos.length?S.videos.map((v,i)=>`<li><button class="lnk${v.id===ytId&&src==='yt'?' cur':''}" data-o="${i}">${esc(v.title)}</button><span class="row" style="flex:none;gap:6px">${S.subs[v.id]&&S.subs[v.id].en&&S.subs[v.id].en.length?'<span class="small">субтитры ✓</span>':''}<button data-x="${i}" aria-label="Удалить">✕</button></span></li>`).join(''):'<li class="small">Вставьте ссылку на YouTube — видео сохранится в этом списке.</li>'}
+$('vids').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.o!==undefined)openYT(S.videos[+b.dataset.o].id);else{const v=S.videos.splice(+b.dataset.x,1)[0];delete S.subs[v.id];save();drawVids()}};
+/* subtitles */
+function drawTr(){$('tr').innerHTML=EN.length?EN.map((c,i)=>`<div data-i="${i}"><small>${fmt(c.s)}</small>${esc(c.text)}</div>`).join(''):'<div class="small" style="cursor:default">Загрузите файл субтитров .srt — здесь появится весь текст. Нажмите на строку, и видео перейдёт к ней.</div>'}
+$('tr').onclick=e=>{const d=e.target.closest('[data-i]');if(!d||!EN.length||!src)return;const c=EN[+d.dataset.i];ci=+d.dataset.i;pausedAt=-1;P.seek(c.s);P.play();renderSub()};
 function findCue(arr,t){for(let i=0;i<arr.length;i++)if(t>=arr[i].s&&t<arr[i].e)return i;return -1}
-function renderSub(){const c=EN[ci];const box=$('sub');box.classList.toggle('hide',hideMode&&!vid.paused);
- if(!c){if(EN.length)box.innerHTML='<span class="en">&nbsp;</span>';return}
+function renderSub(){const c=EN[ci];const box=$('sub');box.classList.toggle('hide',hideMode&&!P.paused());
+ if(!c){box.innerHTML=EN.length?'<span class="en">&nbsp;</span>':'<span class="en small" style="color:#8f99cf">С файлом субтитров .srt здесь появится текст. Нажмите на любое слово, чтобы добавить его в свой словарь.</span>';return}
  const words=c.text.split(/(\s+)/).map(t=>/\S/.test(t)?`<span class="w" data-w="${esc(t)}">${esc(t)}</span>`:t).join('');
  const r=RU.length&&showRu?RU[findCue(RU,(c.s+c.e)/2)]:null;
  box.innerHTML=`<span class="en">${words}</span>${r?`<span class="ru">${esc(r.text)}</span>`:''}`;
  document.querySelectorAll('#tr div.cur').forEach(d=>d.classList.remove('cur'));const d=$('tr').querySelector(`[data-i="${ci}"]`);if(d){d.classList.add('cur');const tr=$('tr');if(d.offsetTop<tr.scrollTop||d.offsetTop>tr.scrollTop+tr.clientHeight-40)tr.scrollTop=d.offsetTop-tr.clientHeight/3}}
-function loop(){const t=vid.currentTime;
- if(auto&&ci>=0&&EN[ci]&&t>=EN[ci].e-0.08&&pausedAt!==ci&&!vid.paused){pausedAt=ci;vid.pause();vid.currentTime=EN[ci].e-0.09}
- const i=findCue(EN,t);if(i!==ci&&i>=0){ci=i;renderSub()}else if(i<0&&ci>=0&&EN[ci]&&t>=EN[ci].e&&!auto){ci=-1;renderSub()}
- if(!vid.paused)requestAnimationFrame(loop)}
-vid.onplay=()=>{renderSub();requestAnimationFrame(loop)};vid.onpause=renderSub;vid.onseeked=()=>{const i=findCue(EN,vid.currentTime);if(i>=0){ci=i;renderSub()}};
-function repeat(){if(ci<0||!EN[ci])return;pausedAt=-1;vid.currentTime=EN[ci].s;vid.play().catch(()=>{})}
+const ticker=setInterval(()=>{if(!src)return;const p=P.paused(),t=P.t();
+ if(auto&&!p&&ci>=0&&EN[ci]&&t>=EN[ci].e-0.12&&pausedAt!==ci){pausedAt=ci;P.pause();if(t>EN[ci].e)P.seek(EN[ci].e-0.15);wasPaused=true;renderSub();return}
+ const i=findCue(EN,t);let ch=false;
+ if(i>=0&&i!==ci){ci=i;ch=true}else if(i<0&&ci>=0&&EN[ci]&&!auto&&(t>=EN[ci].e||t<EN[ci].s)){ci=-1;ch=true}
+ if(ch||p!==wasPaused){wasPaused=p;renderSub()}},120);
+function repeat(){if(ci<0||!EN[ci])return;pausedAt=-1;P.seek(EN[ci].s);P.play()}
 $('vRep').onclick=repeat;
-$('vBack').onclick=()=>{vid.currentTime=Math.max(0,vid.currentTime-5);pausedAt=-1};
+$('vBack').onclick=()=>{if(!src)return;P.seek(Math.max(0,P.t()-5));pausedAt=-1};
 $('vAuto').onclick=e=>{auto=!auto;e.target.classList.toggle('on',auto);pausedAt=-1};
 $('vHide').onclick=e=>{hideMode=!hideMode;e.target.classList.toggle('on',hideMode);renderSub()};
 $('vRu').onclick=e=>{showRu=!showRu;e.target.textContent='Русские: '+(showRu?'вкл':'выкл');renderSub()};
-$('vRate').onchange=e=>{vid.playbackRate=+e.target.value};
-$('sub').onclick=e=>{const s=e.target.closest('span.w');if(!s)return;vid.pause();const w=s.dataset.w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g,'').toLowerCase();if(!w)return;
+$('vRate').onchange=e=>P.rate(+e.target.value);
+$('sub').onclick=e=>{const s=e.target.closest('span.w');if(!s)return;P.pause();const w=s.dataset.w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g,'').toLowerCase();if(!w)return;
  pick={ex:EN[ci]?EN[ci].text:''};$('aw').textContent=w;$('awEn').value=w;$('awRu').value='';$('awEx').textContent=pick.ex;$('addw').hidden=false;$('awRu').focus();speak(w)};
 $('awSay').onclick=()=>speak($('awEn').value);
 $('awX').onclick=()=>{$('addw').hidden=true};
@@ -441,7 +478,7 @@ $('dict').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.datas
 
 document.addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea,button'))return;const v=location.hash.slice(1)||'cards';
  if(v==='cards'){if(e.code==='Space'){e.preventDefault();flip()}else if(e.key==='ArrowRight')mark(true);else if(e.key==='ArrowLeft')mark(false)}
- else if(v==='video'&&vid.src){if(e.key==='r'||e.key==='R'||e.key==='к'||e.key==='К')repeat();else if(e.code==='Space'){e.preventDefault();vid.paused?vid.play().catch(()=>{}):vid.pause()}}});
+ else if(v==='video'&&src){if('rRкК'.includes(e.key))repeat();else if(e.code==='Space'){e.preventDefault();P.paused()?P.play():P.pause()}}});
 
 /* progress */
 function prog(){const k=BASE.filter(learned).length;const g=Object.keys(S.gram).length;
@@ -449,15 +486,15 @@ function prog(){const k=BASE.filter(learned).length;const g=Object.keys(S.gram).
  const ts=Object.keys(W).concat(S.mine.length?[MINE]:[]);
  $('topicBars').innerHTML=ts.map(t=>{const p0=pool(t),n=p0.filter(learned).length,p=Math.round(n/p0.length*100);return`<div class="trow"><span>${esc(t)}</span><div class="tbar"><i style="width:${p}%"></i></div><span>${p}%</span></div>`}).join('')}
 let rs=0;$('reset').onclick=()=>{if(!rs){rs=1;$('resetMsg').textContent='Нажмите ещё раз, чтобы подтвердить. Словарь тоже удалится.';return}
- S={box:{},days:{},tests:0,best:0,gram:{},mine:[]};save();rs=0;$('resetMsg').textContent='Прогресс сброшен.';prog();head();drawDict();gram();deck=[]};
+ S={box:{},days:{},tests:0,best:0,gram:{},mine:[],videos:[],subs:{}};save();drawVids();rs=0;$('resetMsg').textContent='Прогресс сброшен.';prog();head();drawDict();gram();deck=[]};
 
 const VIEWS=['cards','test','grammar','video','progress'];
 function route(){let v=location.hash.slice(1);if(!VIEWS.includes(v))v='cards';
  VIEWS.forEach(x=>$('s-'+x).classList.toggle('on',x===v));document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+v));
- if(v!=='video'&&!vid.paused)vid.pause();
+ if(v!=='video'&&src&&!P.paused())P.pause();
  if(v==='progress')prog();if(v==='cards'){deck=[];showCard()}if(v==='test')drawTChips()}
 addEventListener('hashchange',route);
-gram();head();drawDict();route();
+gram();head();drawDict();drawVids();drawTr();route();
 }
 </script>
 </body>
