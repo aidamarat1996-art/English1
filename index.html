@@ -199,9 +199,10 @@ input[type=text]{width:100%}
    </div>
    <div class="addw" id="addw" hidden>
     <div class="row" style="justify-content:space-between"><b id="aw" style="font-size:22px;font-family:Manrope"></b><button id="awSay" style="min-height:38px;padding:4px 12px">▶</button></div>
-    <p class="small" id="awEx" style="color:inherit;opacity:.75;margin:6px 0 10px"></p>
+    <p class="small" id="awEx" style="color:inherit;opacity:.75;margin:6px 0 2px"></p>
+    <p class="small" id="awExRu" style="color:inherit;opacity:.9;margin:0 0 10px;font-style:italic"></p>
     <form id="awF" class="row"><input type="text" id="awEn" aria-label="Слово или фраза" style="flex:1 1 180px"><input type="text" id="awRu" placeholder="Перевод" aria-label="Перевод" style="flex:1 1 180px"><button class="main">В словарь</button><button type="button" id="awX">Отмена</button></form>
-    <p class="small" style="color:inherit;opacity:.7;margin:8px 0 0">Можно дописать фразу целиком: например, не «give», а «give up».</p>
+    <p class="small" style="color:inherit;opacity:.75;margin:8px 0 0">Перевод подставляется автоматически — проверьте и поправьте, если нужно. Можно дописать фразу целиком (не «give», а «give up») — перевод обновится. Ещё вариант: <a id="awG" href="https://translate.google.com/" target="_blank" rel="noopener">открыть в Google Переводчике</a>.</p>
    </div>
   </div>
   <div>
@@ -466,8 +467,20 @@ $('vAuto').onclick=e=>{auto=!auto;e.target.classList.toggle('on',auto);pausedAt=
 $('vHide').onclick=e=>{hideMode=!hideMode;e.target.classList.toggle('on',hideMode);renderSub()};
 $('vRu').onclick=e=>{showRu=!showRu;e.target.textContent='Русские: '+(showRu?'вкл':'выкл');renderSub()};
 $('vRate').onchange=e=>P.rate(+e.target.value);
+const TRC={};let autoRu=false;
+async function trans(q){q=q.trim();if(!q)return '';const k=q.toLowerCase();if(TRC[k])return TRC[k];
+ const own=BASE.concat(mineWords()).find(w=>w.en.toLowerCase()===k);if(own)return TRC[k]=own.ru;
+ try{const r=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(q)+'&langpair=en|ru');const j=await r.json();
+  let t=(j&&j.responseData&&j.responseData.translatedText)||'';if(/MYMEMORY|QUOTA|INVALID/i.test(t))t='';if(t)TRC[k]=t;return t}catch(e){return ''}}
+function gLink(){$('awG').href='https://translate.google.com/?sl=en&tl=ru&op=translate&text='+encodeURIComponent($('awEn').value)}
+async function fillRu(){const q=$('awEn').value;gLink();if($('awRu').value&&!autoRu)return;$('awRu').value='';$('awRu').placeholder='Перевожу…';
+ const t=await trans(q);if($('awEn').value!==q)return;$('awRu').placeholder='Перевод';
+ if(t&&(!$('awRu').value||autoRu)){$('awRu').value=t;autoRu=true}else if(!t)$('awRu').placeholder='Не удалось перевести — впишите сами'}
+$('awEn').oninput=()=>{clearTimeout(fillRu.t);fillRu.t=setTimeout(fillRu,600)};
+$('awRu').oninput=()=>{autoRu=false};
 $('sub').onclick=e=>{const s=e.target.closest('span.w');if(!s)return;P.pause();const w=s.dataset.w.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g,'').toLowerCase();if(!w)return;
- pick={ex:EN[ci]?EN[ci].text:''};$('aw').textContent=w;$('awEn').value=w;$('awRu').value='';$('awEx').textContent=pick.ex;$('addw').hidden=false;$('awRu').focus();speak(w)};
+ pick={ex:EN[ci]?EN[ci].text:''};$('aw').textContent=w;$('awEn').value=w;$('awRu').value='';autoRu=true;$('awEx').textContent=pick.ex;$('awExRu').textContent='';$('addw').hidden=false;speak(w);fillRu();
+ const ex=pick.ex;if(ex)trans(ex).then(t=>{if(pick&&pick.ex===ex&&t)$('awExRu').textContent=t})};
 $('awSay').onclick=()=>speak($('awEn').value);
 $('awX').onclick=()=>{$('addw').hidden=true};
 $('awF').onsubmit=e=>{e.preventDefault();const en=$('awEn').value.trim(),ru=$('awRu').value.trim();if(!en||!ru){$('awRu').focus();return}
